@@ -45,7 +45,7 @@ ENV PLINK_DIR /opt/plink2
 
 RUN set -ex \
     && apt-get update && apt-get install -y unzip curl \
-    && curl -fSL "http://s3.amazonaws.com/plink2-assets/plink2_linux_i686_20170702.zip" -o $PLINK_ZIP \
+    && curl -fSL "https://www.cog-genomics.org/static/bin/plink170814/plink_linux_x86_64.zip" -o $PLINK_ZIP \
     && mkdir $PLINK_DIR \
     && unzip $PLINK_ZIP -d $PLINK_DIR \
     && rm $PLINK_ZIP
