@@ -247,5 +247,5 @@ if __name__=="__main__":
     """
     generate_1000_genomes_hist(transpose=False, label_splits=[.75],
                                feature_splits=[1.], fold=0, perclass=True, 
-                               path = "/usr/local/diet_code/1000G", prefix="genotypes",
+                               path = "/usr/local/diet_code/genomic", prefix="genotypes",
                                phenotype_file="affy_samples.20141118.panel")
