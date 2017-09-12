@@ -163,7 +163,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--path',type=str, help="path to the data dir",
-                        default="/usr/local/diet_code/1000G")
+                        default="/usr/local/diet_code/genomic")
     parser.add_argument('--learning_rate', type=float, help="learning rate for optimizer",
                         default=.0001)
     parser.add_argument('--sum_dir',type=str, help="dir to the summary path",

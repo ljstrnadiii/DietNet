@@ -4,7 +4,7 @@ import numpy as np
 import os
 
 
-def load_data(path="/usr/local/diet_code/1000G", norm=True):
+def load_data(path="/usr/local/diet_code/genomic", norm=True):
     """
     Load the train, valid, test data.
     Args:
