@@ -11,7 +11,7 @@ import os
 import tensorflow as tf
 slim = tf.contrib.slim
 import numpy as np
-from network import dietnet
+from network_params import dietnet
 from load import load_data
 import random
 import argparse
@@ -28,7 +28,8 @@ def grid():
     Args:
         -None
     Returns:
-        -list of dictionarys defining each model.abs
+        -list of dictionaries defining each model.abs
+        -list of concat strings for file name of each comb
     """
     
     param_grid = {'w_init_dist':[
@@ -41,15 +42,23 @@ def grid():
                       tf.nn.tanh,
                       None],
                   'optims':[
-                      tf.train.AdamOptimizer(.01),
                       tf.train.AdamOptimizer(.001),
-                      tf.train.RMSPropOptimizer(.01),
-                      tf.train.RMSPropOptimizer(.001)] 
+                      tf.train.AdamOptimizer(.0001),
+                      tf.train.RMSPropOptimizer(.001),
+                      tf.train.RMSPropOptimizer(.0001)] 
                 }
+    
+    param_string = [("unif_01","unif_1","norm_01","norm_1"),
+                    ("relu","tanh"),
+                    ("Adam_001","Adam_0001","RMS_001","RMS_0001")]
+
+    p = list(itertools.product(*param_string))
+
+    p_string = [','.join(x) for x in p]
 
     def dict_product(param):
         return (dict(itertools.izip(param, x)) for x in itertools.product(*param.itervalues()))           
-    return list(dict_product(param_grid))
+    return list(dict_product(param_grid)), p_string
 
 
 
@@ -83,116 +92,126 @@ def train(args):
     input_dim=np.shape(trainX)[1]
     output_dim=np.shape(trainY)[1]
     embed_size=input_dim
-
-    # build the graph:
-    loss, accuracy = dietnet(path=args.path,
-                             input_size=input_dim, 
-                             output_size=output_dim,
-                             dropout_rate=args.dropout_rate,
-			     embed_size=embed_size,
-                             hidden_size=100,
-                             std=args.std,
-                             gamma=args.gamma)
-
-    #final ops: accuracy, loss, optimizer:
-    #optimizer = tf.train.RMSPropOptimizer(args.learning_rate)
-    optimizer = tf.train.AdamOptimizer(args.learning_rate)
-    training_op = slim.learning.create_train_op(loss, optimizer,
-                                                #summarize_gradients=True,
-                                                clip_gradient_norm=10)
     
-    # Summary stuff: get the train/valid/test loss and accuracy
-    test_acc_summary = tf.summary.scalar('test_accuracy', accuracy, collections=['test'])
-    valid_acc_summary = tf.summary.scalar('valid_accuracy', accuracy, collections=['valid'])
-    train_acc_summary = tf.summary.scalar('train_accuracy', accuracy, collections=['train'])
+    ############### Get Hyperparameter grid and iterate  ##################3
+    grid_list, grid_string = grid()
+    
+    for hparam, hparam_list in zip(grid_list, grid_string)[0:3]:
 
-    test_loss_summary = tf.summary.scalar('test_loss', loss, collections=['test'])
-    valid_loss_summary = tf.summary.scalar('valid_loss', loss, collections=['valid'])
-    train_loss_summary = tf.summary.scalar('train_loss', loss, collections=['train'])
+        # Begin loop for each parameter combination
+        # build the graph:
+        loss, accuracy = dietnet(path=args.path,
+                                 input_size=input_dim, 
+                                 output_size=output_dim,
+                                 dropout_rate=args.dropout_rate,
+                                 embed_size=embed_size,
+                                 hidden_size=100,
+                                 gamma=args.gamma,
+                                 w_init=hparam['w_init_dist'],
+                                 activ_fn=hparam['act_funs'],
+                                 )
 
-    # separates the summaries according to the collection
-    train_ops = tf.summary.merge_all('train')
-    valid_ops = tf.summary.merge_all('valid')
-    test_ops = tf.summary.merge_all('test')
+        #final ops: accuracy, loss, optimizer:
+        optimizer = hyparam['optims'] 
+        training_op = slim.learning.create_train_op(loss, optimizer,
+                                                    #summarize_gradients=True,
+                                                    clip_gradient_norm=10)
+        
+        # Summary stuff: get the train/valid/test loss and accuracy
+        test_acc_summary = tf.summary.scalar('test_accuracy', accuracy, collections=['test'])
+        valid_acc_summary = tf.summary.scalar('valid_accuracy', accuracy, collections=['valid'])
+        train_acc_summary = tf.summary.scalar('train_accuracy', accuracy, collections=['train'])
 
-    with tf.Session() as sess:
-        # init variables
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
+        test_loss_summary = tf.summary.scalar('test_loss', loss, collections=['test'])
+        valid_loss_summary = tf.summary.scalar('valid_loss', loss, collections=['valid'])
+        train_loss_summary = tf.summary.scalar('train_loss', loss, collections=['train'])
 
-	# print out all trainable variables
-	print([i for i in  tf.trainable_variables()])
+        # separates the summaries according to the collection
+        train_ops = tf.summary.merge_all('train')
+        valid_ops = tf.summary.merge_all('valid')
+        test_ops = tf.summary.merge_all('test')
 
-        # saver for summary
-        swriter = tf.summary.FileWriter(args.sum_dir, sess.graph)
+        with tf.Session() as sess:
+            # init variables
+            sess.run(tf.global_variables_initializer())
+            sess.run(tf.local_variables_initializer())
 
-        step = 0
+            # print out all trainable variables
+            print([i for i in  tf.trainable_variables()])
 
-        try:
-            for i in range(args.num_epoch):
-                for idx in range(int(np.shape(trainX)[0] / args.batchsize)):
-                    # prep data for train:
-                    a,b = idx*args.batchsize, (idx+1)*args.batchsize
-                    batch_x = trainX[a:b,:]
-                    batch_y = trainY[a:b,:]
+            # saver for summary
+            swriter = tf.summary.FileWriter(args.sum_dir + hparam_list, sess.graph)
 
-                    #get time
-                    start_time=time.time()
+            step = 0
 
-                    # run train op and get train loss
-                    trainloss, accur, summaries = sess.run([training_op, accuracy, train_ops],
-                                                    feed_dict={
-                                                        'inputs:0': batch_x,
-                                                        'outputs:0': batch_y,
-                                                        'is_training:0': True})
+            try:
+                for i in range(args.num_epoch):
+                    for idx in range(int(np.shape(trainX)[0] / args.batchsize)):
+                        # prep data for train:
+                        a,b = idx*args.batchsize, (idx+1)*args.batchsize
+                        batch_x = trainX[a:b,:]
+                        batch_y = trainY[a:b,:]
 
-                    # add sumamries every other step for memory
-                    if not idx % 2: swriter.add_summary(summaries,step)
-                    
-                    duration=time.time() - start_time
+                        #get time
+                        start_time=time.time()
 
-                    # every 5 steps get train and test loss/accur
-                    if not idx % 5: 
-                        # sample random 25% from test/valid for error
-                        val_ind = [i for i in random.sample(xrange(val_len), args.batchsize)]
-                        test_ind = [i for i in random.sample(xrange(test_len), args.batchsize)]
-                        val_x = validX[val_ind,:]
-                        val_y = validY[val_ind,:]
-                        
-                        test_x = testX[test_ind,:]
-                        test_y = testY[test_ind,:]
-                        
-                        # get val loss/accur:
-                        val_loss, accur_valid, summaries = sess.run([loss, accuracy, valid_ops],
-                                                       feed_dict={
-                                                           'inputs:0': val_x,
-                                                           'outputs:0': val_y,
-                                                           'is_training:0': False})
-                        swriter.add_summary(summaries,step)
-
-                        # get test loss/accur
-                        test_loss,accur_test, summaries = sess.run([loss, accuracy,test_ops],
+                        # run train op and get train loss
+                        trainloss, accur, summaries = sess.run([training_op, accuracy, train_ops],
                                                         feed_dict={
-                                                            'inputs:0': test_x,
-                                                            'outputs:0': test_y,
-                                                            'is_training:0': False})
-                        swriter.add_summary(summaries, step)
+                                                            'inputs:0': batch_x,
+                                                            'outputs:0': batch_y,
+                                                            'is_training:0': True})
+
+                        # add sumamries every other step for memory
+                        if not idx % 2: swriter.add_summary(summaries,step)
                         
-                        # print to console in order to watch:
-                        print('step {:d}-train/v/test acc:={:.3f},{:.3f},{:.3f}'.format(step, 
-										accur,
-										accur_valid,
-										accur_test))
+                        duration=time.time() - start_time
 
-                    step += 1
+                        # every 5 steps get train and test loss/accur
+                        if not idx % 5: 
+                            # sample random 25% from test/valid for error
+                            val_ind = [i for i in random.sample(xrange(val_len), args.batchsize)]
+                            test_ind = [i for i in random.sample(xrange(test_len),
+                                        args.batchsize)]
+                            val_x = validX[val_ind,:]
+                            val_y = validY[val_ind,:]
+                            
+                            test_x = testX[test_ind,:]
+                            test_y = testY[test_ind,:]
+                            
+                            # get val loss/accur:
+                            val_loss, accur_valid, summaries = sess.run([loss, 
+                                                                        accuracy, 
+                                                                        valid_ops],
+                                                                feed_dict={
+                                                                    'inputs:0': val_x,
+                                                                    'outputs:0': val_y,
+                                                                    'is_training:0': False})
+                            swriter.add_summary(summaries,step)
 
-                    # add checkpoint here:...
-            
-            # if num_epochs is complete close swriter
-            swriter.close()
+                            # get test loss/accur
+                            test_loss,accur_test, summaries = sess.run([loss, accuracy,test_ops],
+                                                            feed_dict={
+                                                                'inputs:0': test_x,
+                                                                'outputs:0': test_y,
+                                                                'is_training:0': False})
+                            swriter.add_summary(summaries, step)
+                            
+                            # print to console in order to watch:
+                            print('step {:d}-train/v/test acc:={:.3f},{:.3f},{:.3f}'.format(step, 
+                                                                                    accur,
+                                                                                    accur_valid,
+                                                                                    accur_test))
 
-        finally:
-            swriter.close()
+                        step += 1
+
+                        # add checkpoint here:...
+                
+                # if num_epochs is complete close swriter
+                swriter.close()
+
+            finally:
+                swriter.close()
 
 
 def parse_arguments():
@@ -207,9 +226,9 @@ def parse_arguments():
     parser.add_argument('--learning_rate', type=float, help="learning rate for optimizer",
                         default=.0001)
     parser.add_argument('--sum_dir',type=str, help="dir to the summary path",
-                        default="/usr/local/diet_code/log")
+                        default="/usr/local/diet_code/tb_summary/")
     parser.add_argument('--num_epoch', type=int, help="number of epochs",
-                        default=800)
+                        default=10)
     parser.add_argument('--batchsize', type=int, help="batch size for training",
                         default=128)
     parser.add_argument('--std', type=float, help="standard deviation for the weight init",
