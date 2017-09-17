@@ -96,8 +96,9 @@ def train(args):
     ############### Get Hyperparameter grid and iterate  ##################3
     grid_list, grid_string = grid()
     
-    for hparam, hparam_list in zip(grid_list, grid_string)[0:3]:
-
+    for hparam, hparam_list in zip(grid_list, grid_string):
+	tf.reset_default_graph()
+	print("new combination")
         # Begin loop for each parameter combination
         # build the graph:
         loss, accuracy = dietnet(path=args.path,
@@ -108,11 +109,11 @@ def train(args):
                                  hidden_size=100,
                                  gamma=args.gamma,
                                  w_init=hparam['w_init_dist'],
-                                 activ_fn=hparam['act_funs'],
+                                 activ_fun=hparam['act_funs'],
                                  )
 
         #final ops: accuracy, loss, optimizer:
-        optimizer = hyparam['optims'] 
+        optimizer = hparam['optims'] 
         training_op = slim.learning.create_train_op(loss, optimizer,
                                                     #summarize_gradients=True,
                                                     clip_gradient_norm=10)
@@ -137,7 +138,7 @@ def train(args):
             sess.run(tf.local_variables_initializer())
 
             # print out all trainable variables
-            print([i for i in  tf.trainable_variables()])
+            #print([i for i in  tf.trainable_variables()])
 
             # saver for summary
             swriter = tf.summary.FileWriter(args.sum_dir + hparam_list, sess.graph)
@@ -163,12 +164,12 @@ def train(args):
                                                             'is_training:0': True})
 
                         # add sumamries every other step for memory
-                        if not idx % 2: swriter.add_summary(summaries,step)
+                        if not idx % 25: swriter.add_summary(summaries,step)
                         
                         duration=time.time() - start_time
 
                         # every 5 steps get train and test loss/accur
-                        if not idx % 5: 
+                        if not idx % 25: 
                             # sample random 25% from test/valid for error
                             val_ind = [i for i in random.sample(xrange(val_len), args.batchsize)]
                             test_ind = [i for i in random.sample(xrange(test_len),
@@ -228,7 +229,7 @@ def parse_arguments():
     parser.add_argument('--sum_dir',type=str, help="dir to the summary path",
                         default="/usr/local/diet_code/tb_summary/")
     parser.add_argument('--num_epoch', type=int, help="number of epochs",
-                        default=10)
+                        default=600)
     parser.add_argument('--batchsize', type=int, help="batch size for training",
                         default=128)
     parser.add_argument('--std', type=float, help="standard deviation for the weight init",

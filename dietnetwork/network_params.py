@@ -123,7 +123,7 @@ def dietnet(path=None,
         
 	# make embedding weight matrix net        
         We = auxnet(embed, hidden_size, dropout_rate=dropout_rate,
-                    w_init=w_init, act_fun=activ_fun is_training=is_training, scope='aux_We')
+                    w_init=w_init, act_fun=activ_fun, is_training=is_training, scope='aux_We')
         
         # clip by norm: paper suggest to restrict the norm of weights to 1
         We = tf.clip_by_norm(We, clip_norm=3)
@@ -159,7 +159,7 @@ def dietnet(path=None,
                            scope='hidden')
 
             fc = layers.batch_norm(fc, center=True, 
-                                    activation_fn=act_fun,
+                                    activation_fn=activ_fun,
                                     scale=True, 
                                     is_training=is_training,
                                     scope='bn')
@@ -185,7 +185,7 @@ def dietnet(path=None,
         
 	# build the autoencoder (not sharing params, just embedding)
         Wd = auxnet(embed, hidden_size, dropout_rate=dropout_rate, 
-                    w_init=w_init, act_fun=act_fun, is_training=is_training, scope='aux_Wd')
+                    w_init=w_init, act_fun=activ_fun, is_training=is_training, scope='aux_Wd')
 
         # again, paper suggests restricting the norm of weights to 1
         Wd = tf.clip_by_norm(Wd, clip_norm=3)
@@ -193,7 +193,7 @@ def dietnet(path=None,
 
         # mlp for the reconstruction:
         rec_x = tf.matmul(fc,Wd, transpose_b=True)
-        rec_x = slim.bias_add(rec_x, activation_fn=act_fun)
+        rec_x = slim.bias_add(rec_x, activation_fn=activ_fun)
 	#tf.summary.histogram('activations/rec_x', rec_x)
         mse = slim.losses.mean_squared_error(rec_x,
                                              inputs,
