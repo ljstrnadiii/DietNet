@@ -1,3 +1,4 @@
+tb_*
 genomic/*
 __pycache__
 dist
